@@ -1,0 +1,30 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: settlement-service
+  datasource:
+    url: jdbc:postgresql://localhost:5432/ledgerline
+    username: ledgerline
+    password: ledgerline
+  jpa:
+    open-in-view: false
+    hibernate:
+      # Flyway owns the schema.
+      ddl-auto: none
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JacksonJsonDeserializer
+        spring.json.trusted.packages: dev.ledgerline.events
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
