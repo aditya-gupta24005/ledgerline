@@ -18,15 +18,21 @@ spring:
     bootstrap-servers: localhost:9092
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.springframework.kafka.support.serializer.JacksonJsonSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
       acks: all
       properties:
         enable.idempotence: true
-        # Never let an unreachable broker block the matching thread for long.
-        max.block.ms: 2000
+        # Bounds how long send() blocks for metadata while the broker is down (default 60 s),
+        # so a relay run fails fast and retries instead of holding the advisory lock for a minute.
+        max.block.ms: 5000
 
 ledgerline:
   currency: USD
+  outbox:
+    relay:
+      poll-interval: 200ms
+      batch-size: 100
+      send-timeout: 5s
 
 management:
   endpoints:
