@@ -1,7 +1,7 @@
 # Ledgerline Phase 2 Design
 
 Date: 2026-09-15
-Status: approved in chat, pending written-spec review
+Status: approved in chat, pending written-spec review. Sub-project A is specified in detail in `2026-09-15-outbox-and-dead-letter-design.md`.
 
 Phase 2 is four sub-projects, built and committed in this order: **A → C → B → D**.
 
@@ -18,84 +18,24 @@ Everything in phase 1 keeps working, and all existing tests must keep passing af
 
 ## A. Guaranteed trade publishing
 
-### Problem
+**Authoritative spec: [`2026-09-15-outbox-and-dead-letter-design.md`](2026-09-15-outbox-and-dead-letter-design.md)**
+(approved earlier the same day). That document wins wherever this summary is less specific. In short:
 
-`KafkaTradeEventPublisher` sends trades asynchronously and only logs failures. If Kafka is down, or the
-process dies before a send completes, the client has already been told the order filled, yet settlement
-never hears about the trade.
-
-### Design: transactional outbox with fail-stop
-
-**Storage.** order-service gets a datasource pointing at the existing `ledgerline` Postgres database, with
-its own schema `orders` managed by Flyway (`spring.flyway.schemas=orders`). Settlement keeps `public`. One
-database instance, separate schemas, and no service reads another's tables.
-
-```sql
-CREATE TABLE orders.outbox_events (
-    id            BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    event_id      VARCHAR(64)  NOT NULL UNIQUE,   -- trade id
-    topic         VARCHAR(128) NOT NULL,
-    message_key   VARCHAR(64)  NOT NULL,          -- symbol
-    event_type    VARCHAR(64)  NOT NULL,          -- "TradeExecuted"
-    payload       JSONB        NOT NULL,
-    created_at    TIMESTAMPTZ  NOT NULL,
-    published_at  TIMESTAMPTZ
-);
-CREATE INDEX idx_outbox_unpublished ON orders.outbox_events (id) WHERE published_at IS NULL;
-```
-
-**Write path.** Inside the sequencer task, after `engine.submit(...)` produces trades, `OutboxWriter`
-inserts every trade of that command as one JDBC batch in one transaction (`JdbcClient`, no JPA on the hot
-path). The HTTP response is built only after the commit. `TradeEventPublisher` and
-`KafkaTradeEventPublisher` are removed.
-
-**Fail-stop.** If the outbox write throws, the engine's in-memory state already contains trades that are
-not durable. `OrderGateway` moves to `HALTED`:
-- the failing request returns **503** (`EngineHaltedException` → ProblemDetail, title "Matching engine halted");
-- every later submit and cancel returns 503 without touching the engine, while book reads still work;
-- a `matchingEngine` `HealthIndicator` reports `DOWN` with the halt reason.
-
-Recovery is a restart. The in-memory book is lost on restart, which is a known limitation until engine
-journaling in phase 4. Halting beats continuing with trades nobody recorded, and it is how real venues
-behave.
-
-**Relay.** `OutboxRelay` runs `@Scheduled(fixedDelay = 200ms)` (property `ledgerline.outbox.poll-interval`):
-1. In a transaction: `SELECT … WHERE published_at IS NULL ORDER BY id LIMIT 100 FOR UPDATE SKIP LOCKED`.
-2. For each row in order: deserialize the payload into `TradeExecuted` and send it with
-   `KafkaTemplate<String, TradeExecuted>`, waiting up to 5 s for the ack.
-3. On the first failure, stop the batch so later rows never overtake an earlier one for the same symbol.
-4. Mark the rows that were acknowledged with `published_at = now()`.
-
-Delivery is at least once. A crash between the ack and the update resends the row, and settlement already
-de-duplicates by trade id (risk-service also does, see C). Producer settings stay `acks=all`,
-`enable.idempotence=true`.
-
-**Housekeeping and visibility.**
-- `OutboxCleanup` runs daily and deletes rows published more than 7 days ago (`ledgerline.outbox.retention`).
-- A Micrometer gauge `ledgerline.outbox.pending` counts unpublished rows.
-
-### Design: dead-letter topic in settlement
-
-- `DefaultErrorHandler` with `ExponentialBackOffWithMaxRetries(3)`, starting at 500 ms and doubling.
-- After retries are exhausted, `DeadLetterPublishingRecoverer` publishes the original record (bytes and
-  headers, including the exception headers) to **`ledgerline.trades.executed.DLT`**, declared as a
-  `NewTopic` with 3 partitions.
-- Some failures go straight to the DLT without retrying: `DeserializationException`,
-  `IllegalArgumentException` (invalid event), `MessageConversionException`.
-- The recoverer uses a dedicated `KafkaTemplate<Object, Object>` whose value serializer handles both
-  `byte[]` (raw bytes from failed deserialization) and `TradeExecuted` (a `DelegatingByTypeSerializer`).
-
-### Tests (A)
-
-- `OutboxWriterIT` (Testcontainers Postgres): a batch insert is atomic, and a duplicate `event_id` fails.
-- `OrderGatewayTest`: an outbox failure halts the engine, and later submits are rejected without mutating the book.
-- `OutboxRelayIT` (Testcontainers Postgres + Kafka):
-  - rows are published in id order and marked published;
-  - with the broker unreachable, rows stay pending and the batch stops at the first failure;
-  - once the broker is back, everything is delivered.
-- `OrderControllerTest`: a halted engine returns 503, and health is `DOWN`.
-- `DeadLetterIT` in settlement (Testcontainers Kafka + Postgres): a malformed message lands on the DLT,
-  and the next valid trade is still settled.
+- **Outbox:** order-service writes each command's trades to `order_service.outbox_events` in one transaction on
+  the engine thread, before replying. `TradeEventPublisher` and `KafkaTradeEventPublisher` are removed.
+- **Fail-stop:** if the outbox write fails, the engine halts. Submit and cancel return 503, book reads still
+  work, health is `DOWN`, and a restart clears it.
+- **Relay:** runs every 200 ms and holds a Postgres **advisory lock**, so exactly one relay publishes at a
+  time. It sends rows in id order as plain JSON strings with an `eventType` header, stops at the first failure
+  (recording `attempts` and `last_error`), and marks acknowledged rows as published. Delivery is at least once.
+  `FOR UPDATE SKIP LOCKED` was rejected because concurrent relays could reorder a symbol's trades.
+- **Settlement:** consumes plain JSON strings, so no Java class names cross the wire. Retries go 1 s, 2 s,
+  4 s. Invalid messages and unbalanced postings go straight to `ledgerline.trades.executed.DLT`.
+- **Ops API:** `GET /api/v1/ops/dead-letters` lists dead-lettered records;
+  `POST /api/v1/ops/dead-letters/{partition}/{offset}/replay` republishes one. Replay is safe to repeat
+  because settlement is idempotent.
+- **Metrics:** `ledgerline.outbox.pending`, `ledgerline.outbox.published`, `ledgerline.outbox.publish.failures`.
+- **Deferred:** outbox row cleanup and securing the ops API (added in B under the OPS role).
 
 ---
 
@@ -136,7 +76,7 @@ trades (ledgerline.trades.executed, key=symbol)
 - **Why the dedupe step exists:** `exactly_once_v2` guarantees Kafka Streams doesn't double-apply a
   record it reads once. It cannot detect the same trade published twice by the outbox relay, so a
   duplicate would otherwise double-count a position.
-- **Serdes:** JSON serdes from Spring Kafka for `TradeExecuted`, `Position` and `RiskAlert`.
+- **Serdes:** trades arrive as plain JSON strings (see A), so the input serde is `JacksonJsonSerde<TradeExecuted>` with a fixed target type, ignoring type headers. `Position` and `RiskAlert` also use `JacksonJsonSerde`.
 
 ### API
 
@@ -206,6 +146,7 @@ A Spring Boot auto-configuration used by order-, settlement- and risk-service:
 | order | `DELETE /api/v1/orders/{symbol}/{id}` | TRADER. The engine only cancels an order owned by that account; otherwise 404, so nobody learns other orders exist |
 | order | `GET /api/v1/books/{symbol}` | any authenticated user |
 | order | WebSocket `/ws` (see D) | valid token on STOMP CONNECT |
+| settlement | `GET` and `POST /api/v1/ops/dead-letters/**` | OPS |
 | settlement | `GET /api/v1/accounts/{id}/balances` | RISK or OPS for any account; TRADER only when `{id}` matches the token |
 | risk | `GET /api/v1/risk/accounts/{id}/positions` | RISK or OPS for any account; TRADER only when `{id}` matches the token |
 
