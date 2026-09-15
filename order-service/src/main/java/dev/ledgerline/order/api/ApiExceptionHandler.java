@@ -1,5 +1,6 @@
 package dev.ledgerline.order.api;
 
+import dev.ledgerline.order.engine.EngineHaltedException;
 import dev.ledgerline.order.engine.InvalidPriceException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -22,6 +23,13 @@ class ApiExceptionHandler {
     ProblemDetail handleInvalidPrice(InvalidPriceException e) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, e.getMessage());
         problem.setTitle("Invalid price");
+        return problem;
+    }
+
+    @ExceptionHandler(EngineHaltedException.class)
+    ProblemDetail handleHalted(EngineHaltedException e) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, e.getMessage());
+        problem.setTitle("Engine halted");
         return problem;
     }
 }

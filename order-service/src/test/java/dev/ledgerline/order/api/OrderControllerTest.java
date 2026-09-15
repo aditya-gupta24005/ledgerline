@@ -1,8 +1,9 @@
 package dev.ledgerline.order.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -12,7 +13,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.jayway.jsonpath.JsonPath;
 import dev.ledgerline.events.TradeExecuted;
 import dev.ledgerline.order.PostgresTestConfiguration;
-import dev.ledgerline.order.events.TradeEventPublisher;
+import dev.ledgerline.order.outbox.OutboxWriter;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,8 +28,8 @@ import org.springframework.test.web.servlet.ResultActions;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
- * Exercises the full stack from HTTP through the sequencer and the real matching engine, with only
- * Kafka publishing mocked. The engine is shared across tests, so each test uses its own symbol.
+ * Exercises the full stack from HTTP through the sequencer and the real matching engine, with the outbox
+ * writer mocked. The engine is shared across tests, so each test uses its own symbol.
  */
 @SpringBootTest(properties = {"spring.kafka.admin.auto-create=false", "ledgerline.scheduling.enabled=false"})
 @AutoConfigureMockMvc
@@ -39,7 +41,7 @@ class OrderControllerTest {
     private MockMvc mockMvc;
 
     @MockitoBean
-    private TradeEventPublisher publisher;
+    private OutboxWriter outboxWriter;
 
     private ResultActions placeOrder(String json) throws Exception {
         return mockMvc.perform(post("/api/v1/orders").contentType(MediaType.APPLICATION_JSON).content(json));
@@ -55,11 +57,12 @@ class OrderControllerTest {
                 .andExpect(jsonPath("$.restingQuantity").value(10))
                 .andExpect(jsonPath("$.fills").isEmpty());
 
-        verifyNoInteractions(publisher);
+        verify(outboxWriter, never()).append(anyList());
     }
 
     @Test
-    void crossingOrdersTradeAndPublishTheTrade() throws Exception {
+    @SuppressWarnings("unchecked")
+    void crossingOrdersTradeAndAppendTheTradeToTheOutbox() throws Exception {
         placeOrder("""
                 {"accountId": "alice", "symbol": "CROSS", "side": "SELL", "type": "LIMIT", "price": 101.50, "quantity": 5}
                 """)
@@ -73,16 +76,17 @@ class OrderControllerTest {
                 .andExpect(jsonPath("$.fills.length()").value(1))
                 .andExpect(jsonPath("$.fills[0].quantity").value(5));
 
-        ArgumentCaptor<TradeExecuted> published = ArgumentCaptor.forClass(TradeExecuted.class);
-        verify(publisher).publish(published.capture());
-        TradeExecuted trade = published.getValue();
-        assertThat(trade.symbol()).isEqualTo("CROSS");
-        assertThat(trade.price()).isEqualByComparingTo("101.50");
-        assertThat(trade.quantity()).isEqualTo(5);
-        assertThat(trade.buyAccountId()).isEqualTo("bob");
-        assertThat(trade.sellAccountId()).isEqualTo("alice");
-        assertThat(trade.currency()).isEqualTo("USD");
-        assertThat(trade.aggressorSide()).isEqualTo("BUY");
+        ArgumentCaptor<List<TradeExecuted>> appended = ArgumentCaptor.forClass(List.class);
+        verify(outboxWriter).append(appended.capture());
+        assertThat(appended.getValue()).singleElement().satisfies(trade -> {
+            assertThat(trade.symbol()).isEqualTo("CROSS");
+            assertThat(trade.price()).isEqualByComparingTo("101.50");
+            assertThat(trade.quantity()).isEqualTo(5);
+            assertThat(trade.buyAccountId()).isEqualTo("bob");
+            assertThat(trade.sellAccountId()).isEqualTo("alice");
+            assertThat(trade.currency()).isEqualTo("USD");
+            assertThat(trade.aggressorSide()).isEqualTo("BUY");
+        });
     }
 
     @Test
