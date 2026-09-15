@@ -20,7 +20,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /** Runs against a real PostgreSQL (with the Flyway schema) in Docker; skipped when Docker is unavailable. */
-@SpringBootTest(properties = "spring.kafka.listener.auto-startup=false")
+@SpringBootTest(properties = {"spring.kafka.listener.auto-startup=false", "spring.kafka.admin.auto-create=false"})
 @Testcontainers(disabledWithoutDocker = true)
 class SettlementServiceIT {
 
