@@ -11,23 +11,28 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.jayway.jsonpath.JsonPath;
 import dev.ledgerline.events.TradeExecuted;
+import dev.ledgerline.order.PostgresTestConfiguration;
 import dev.ledgerline.order.events.TradeEventPublisher;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
+import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
  * Exercises the full stack from HTTP through the sequencer and the real matching engine, with only
  * Kafka publishing mocked. The engine is shared across tests, so each test uses its own symbol.
  */
-@SpringBootTest(properties = "spring.kafka.admin.auto-create=false")
+@SpringBootTest(properties = {"spring.kafka.admin.auto-create=false", "ledgerline.scheduling.enabled=false"})
 @AutoConfigureMockMvc
+@Import(PostgresTestConfiguration.class)
+@Testcontainers(disabledWithoutDocker = true)
 class OrderControllerTest {
 
     @Autowired
