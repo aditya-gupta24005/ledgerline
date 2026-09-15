@@ -81,10 +81,17 @@ public class OutboxRelay {
 
     /** Publishes up to one batch of pending rows. Returns how many were published. */
     public int runOnce() {
+        // Refresh before sending too: a send can block for seconds while the broker is down,
+        // and the backlog should be visible during that time, not only after the run.
+        refreshPending();
         Integer publishedCount = transactions.execute(status -> publishBatch());
+        refreshPending();
+        return publishedCount == null ? 0 : publishedCount;
+    }
+
+    private void refreshPending() {
         pending.set(jdbc.queryForObject(
                 "SELECT count(*) FROM order_service.outbox_events WHERE published_at IS NULL", Long.class));
-        return publishedCount == null ? 0 : publishedCount;
     }
 
     private int publishBatch() {
@@ -113,7 +120,9 @@ public class OutboxRelay {
             }
         }
         if (!publishedIds.isEmpty()) {
-            jdbc.update("UPDATE order_service.outbox_events SET published_at = now() WHERE id = ANY(?)",
+            // clock_timestamp(), not now(): now() is the transaction start, which can be seconds before the
+            // broker ack when a send blocks, and would make rows look published before they were.
+            jdbc.update("UPDATE order_service.outbox_events SET published_at = clock_timestamp() WHERE id = ANY(?)",
                     statement -> statement.setArray(1,
                             statement.getConnection().createArrayOf("bigint", publishedIds.toArray())));
             published.increment(publishedIds.size());
