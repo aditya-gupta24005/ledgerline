@@ -11,6 +11,11 @@ spring:
     url: jdbc:postgresql://localhost:5432/ledgerline
     username: ledgerline
     password: ledgerline
+    hikari:
+      # The outbox write runs on the single engine thread, and callers wait at most 5 s for it (OrderGateway).
+      # Hikari's default 30 s wait for a connection during a database outage would block every later command and
+      # turn the halt into generic 500 timeouts, so fail well inside that window and halt with a 503 instead.
+      connection-timeout: 2000
   flyway:
     schemas: order_service
     default-schema: order_service
