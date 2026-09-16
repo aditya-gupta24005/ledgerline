@@ -67,9 +67,12 @@ class RiskServiceIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].symbol").value("ACME"))
                 .andExpect(jsonPath("$[0].netQuantity").value(11)));
-        mockMvc.perform(get("/api/v1/risk/accounts/{account}/positions", seller).with(trader(seller)))
+        // The buyer's and seller's fills travel through different partitions of the repartition topic, so the
+        // two positions can become queryable at slightly different moments; await this one as well.
+        await().atMost(Duration.ofSeconds(60)).untilAsserted(() -> mockMvc
+                .perform(get("/api/v1/risk/accounts/{account}/positions", seller).with(trader(seller)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].netQuantity").value(-11));
+                .andExpect(jsonPath("$[0].netQuantity").value(-11)));
 
         List<RiskAlert> alerts = alertsForRun(run, Duration.ofSeconds(15));
         assertThat(alerts).as("one alert per side, the duplicate adds none")
