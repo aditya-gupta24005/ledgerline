@@ -1,25 +1,29 @@
 #!/usr/bin/env bash
 # Trades flow into live positions and P&L; a large position raises one limit alert.
-# Needs: docker compose stack running, order-service on 8081, risk-service on 8083.
+# Needs: docker compose stack (incl. keycloak), order-service on 8081, risk-service on 8083.
 set -euo pipefail
+cd "$(dirname "$0")/.."
+source scripts/token.sh
 
 DOCKER="${DOCKER:-docker}"
 ORDER_URL="${ORDER_URL:-http://localhost:8081}"
 RISK_URL="${RISK_URL:-http://localhost:8083}"
 # Not `tr </dev/urandom | head`: under pipefail, tr's SIGPIPE would abort the script.
 SYMBOL="$(python3 -c 'import random, string; print("".join(random.choices(string.ascii_uppercase, k=5)))')"
-RUN="$(date +%s)"
-TRADER="trader-$RUN"
-MARKET="market-$RUN"
+# Accounts are Keycloak users now; a fresh symbol keeps this run's positions separate from earlier ones.
+TRADER=alice
+MARKET=bob
 JSON='Content-Type: application/json'
+ALICE=$(auth alice); BOB=$(auth bob); RITA=$(auth rita)
 
 order() { # account, side, price, quantity
-  curl -s -o /dev/null -w "$1 $2 $4 @ $3: HTTP %{http_code}\n" -X POST "$ORDER_URL/api/v1/orders" -H "$JSON" \
-    -d "{\"accountId\":\"$1\",\"symbol\":\"$SYMBOL\",\"side\":\"$2\",\"type\":\"LIMIT\",\"price\":$3,\"quantity\":$4}"
+  local header; [ "$1" = alice ] && header=$ALICE || header=$BOB
+  curl -s -o /dev/null -w "$1 $2 $4 @ $3: HTTP %{http_code}\n" -X POST "$ORDER_URL/api/v1/orders" -H "$header" -H "$JSON" \
+    -d "{\"symbol\":\"$SYMBOL\",\"side\":\"$2\",\"type\":\"LIMIT\",\"price\":$3,\"quantity\":$4}"
 }
 
-positions() {
-  curl -s "$RISK_URL/api/v1/risk/accounts/$1/positions"; echo
+positions() { # account, read as rita (RISK)
+  curl -s "$RISK_URL/api/v1/risk/accounts/$1/positions" -H "$RITA"; echo
 }
 
 echo "== $TRADER buys 100 $SYMBOL at 50, then 100 more at 60 (average cost 55)"
