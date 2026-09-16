@@ -1,0 +1,169 @@
+{
+  "realm": "ledgerline",
+  "enabled": true,
+  "accessTokenLifespan": 3600,
+  "roles": {
+    "realm": [
+      {
+        "name": "TRADER",
+        "description": "Places and cancels own orders; reads own balances and positions"
+      },
+      {
+        "name": "RISK",
+        "description": "Reads every account's balances and positions"
+      },
+      {
+        "name": "OPS",
+        "description": "Operates the platform, including dead-letter replay"
+      }
+    ]
+  },
+  "users": [
+    {
+      "username": "alice",
+      "firstName": "Alice",
+      "lastName": "Trader",
+      "enabled": true,
+      "email": "alice@ledgerline.dev",
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "alice",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "TRADER"
+      ]
+    },
+    {
+      "username": "bob",
+      "firstName": "Bob",
+      "lastName": "Trader",
+      "enabled": true,
+      "email": "bob@ledgerline.dev",
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "bob",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "TRADER"
+      ]
+    },
+    {
+      "username": "carol",
+      "firstName": "Carol",
+      "lastName": "Trader",
+      "enabled": true,
+      "email": "carol@ledgerline.dev",
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "carol",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "TRADER"
+      ]
+    },
+    {
+      "username": "rita",
+      "firstName": "Rita",
+      "lastName": "Risk",
+      "enabled": true,
+      "email": "rita@ledgerline.dev",
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "rita",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "RISK"
+      ]
+    },
+    {
+      "username": "oscar",
+      "firstName": "Oscar",
+      "lastName": "Ops",
+      "enabled": true,
+      "email": "oscar@ledgerline.dev",
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "oscar",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "OPS"
+      ]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "ledgerline-dashboard",
+      "name": "Ledgerline dashboard (browser, PKCE)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": [
+        "http://localhost:5173/*"
+      ],
+      "webOrigins": [
+        "http://localhost:5173"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:5173/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "ledgerline-api audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "ledgerline-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "ledgerline-cli",
+      "name": "Ledgerline CLI (dev only: password grant for curl demos)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "protocolMappers": [
+        {
+          "name": "ledgerline-api audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "ledgerline-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ]
+}

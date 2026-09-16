@@ -46,15 +46,17 @@ services:
       timeout: 3s
       retries: 10
 
-  # Identity provider for phase 2 (OAuth2 resource servers). Admin console: http://localhost:8180
+  # Identity provider. Imports keycloak/ledgerline-realm.json on start. Admin console: http://localhost:8180
   keycloak:
     image: quay.io/keycloak/keycloak:26.7.3
-    command: start-dev
+    command: start-dev --import-realm
     ports:
       - "8180:8080"
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    volumes:
+      - ./keycloak:/opt/keycloak/data/import:ro
 
 volumes:
   postgres-data:
