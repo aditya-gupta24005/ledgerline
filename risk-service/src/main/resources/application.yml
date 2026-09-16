@@ -7,6 +7,12 @@ spring:
   mvc:
     problemdetails:
       enabled: true
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8180/realms/ledgerline
+          audiences: ledgerline-api
   kafka:
     bootstrap-servers: localhost:9092
     streams:
@@ -19,6 +25,9 @@ spring:
         default.value.serde: org.apache.kafka.common.serialization.Serdes$StringSerde
 
 ledgerline:
+  security:
+    cors:
+      allowed-origins: http://localhost:5173
   risk:
     position-notional-limit: 1000000
     dedupe-retention: 7d

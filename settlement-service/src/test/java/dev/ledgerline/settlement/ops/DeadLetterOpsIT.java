@@ -1,5 +1,7 @@
 package dev.ledgerline.settlement.ops;
 
+import static dev.ledgerline.settlement.TestUsers.ops;
+import static dev.ledgerline.settlement.TestUsers.trader;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 import static org.hamcrest.Matchers.containsString;
@@ -66,7 +68,7 @@ class DeadLetterOpsIT {
 
         kafkaTemplate.send(Topics.TRADES_EXECUTED, key, "{\"bad\":").get(10, TimeUnit.SECONDS);
 
-        await().atMost(Duration.ofSeconds(20)).untilAsserted(() -> mockMvc.perform(get("/api/v1/ops/dead-letters?limit=500"))
+        await().atMost(Duration.ofSeconds(20)).untilAsserted(() -> mockMvc.perform(get("/api/v1/ops/dead-letters?limit=500").with(ops()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath(match + ".payload").value(hasItem("{\"bad\":")))
                 .andExpect(jsonPath(match + ".exceptionClass").value(hasItem(containsString("InvalidTradeMessageException"))))
@@ -82,7 +84,7 @@ class DeadLetterOpsIT {
                 .get(10, TimeUnit.SECONDS);
         long offset = sent.getRecordMetadata().offset();
 
-        mockMvc.perform(post("/api/v1/ops/dead-letters/0/{offset}/replay", offset))
+        mockMvc.perform(post("/api/v1/ops/dead-letters/0/{offset}/replay", offset).with(ops()))
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.replayedTo").value(Topics.TRADES_EXECUTED))
                 .andExpect(jsonPath("$.partition").value(0))
@@ -91,7 +93,7 @@ class DeadLetterOpsIT {
         await().atMost(Duration.ofSeconds(20)).until(() -> instructions.existsById(tradeId));
         assertThat(journal.findByTradeId(tradeId)).hasSize(4);
 
-        mockMvc.perform(post("/api/v1/ops/dead-letters/0/{offset}/replay", offset)).andExpect(status().isAccepted());
+        mockMvc.perform(post("/api/v1/ops/dead-letters/0/{offset}/replay", offset).with(ops())).andExpect(status().isAccepted());
 
         await().during(Duration.ofSeconds(3)).atMost(Duration.ofSeconds(6))
                 .untilAsserted(() -> assertThat(journal.findByTradeId(tradeId)).hasSize(4));
@@ -99,13 +101,27 @@ class DeadLetterOpsIT {
 
     @Test
     void unknownOffsetIsNotFound() throws Exception {
-        mockMvc.perform(post("/api/v1/ops/dead-letters/0/999999999/replay")).andExpect(status().isNotFound());
+        mockMvc.perform(post("/api/v1/ops/dead-letters/0/999999999/replay").with(ops())).andExpect(status().isNotFound());
     }
 
     @Test
     void unknownPartitionIsBadRequest() throws Exception {
-        mockMvc.perform(post("/api/v1/ops/dead-letters/99/0/replay"))
+        mockMvc.perform(post("/api/v1/ops/dead-letters/99/0/replay").with(ops()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.title").value("Unknown dead-letter partition"));
+    }
+
+    @Test
+    void tradersAndRiskCannotUseTheOpsApi() throws Exception {
+        mockMvc.perform(get("/api/v1/ops/dead-letters").with(trader("alice")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.title").value("Forbidden"));
+        mockMvc.perform(post("/api/v1/ops/dead-letters/0/0/replay").with(trader("alice")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void noTokenIsUnauthorized() throws Exception {
+        mockMvc.perform(get("/api/v1/ops/dead-letters")).andExpect(status().isUnauthorized());
     }
 }

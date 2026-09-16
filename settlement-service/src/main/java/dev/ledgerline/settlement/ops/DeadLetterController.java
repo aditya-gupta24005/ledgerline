@@ -4,6 +4,7 @@ import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1/ops/dead-letters")
+@PreAuthorize("hasRole('OPS')")
 class DeadLetterController {
 
     private static final int MAX_LIMIT = 500;
@@ -27,12 +29,12 @@ class DeadLetterController {
     }
 
     @GetMapping
-    List<DeadLetterRecord> list(@RequestParam(defaultValue = "50") int limit) {
+    public List<DeadLetterRecord> list(@RequestParam(defaultValue = "50") int limit) {
         return store.latest(Math.clamp(limit, 1, MAX_LIMIT));
     }
 
     @PostMapping("/{partition}/{offset}/replay")
-    ResponseEntity<ReplayResult> replay(@PathVariable int partition, @PathVariable long offset) {
+    public ResponseEntity<ReplayResult> replay(@PathVariable int partition, @PathVariable long offset) {
         return replayer.replay(partition, offset)
                 .map(result -> ResponseEntity.accepted().body(result))
                 .orElseGet(() -> ResponseEntity.notFound().build());

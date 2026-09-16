@@ -13,6 +13,12 @@ spring:
     hibernate:
       # Flyway owns the schema.
       ddl-auto: none
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8180/realms/ledgerline
+          audiences: ledgerline-api
   kafka:
     bootstrap-servers: localhost:9092
     consumer:
@@ -25,6 +31,9 @@ spring:
       acks: all
 
 ledgerline:
+  security:
+    cors:
+      allowed-origins: http://localhost:5173
   settlement:
     retry:
       initial-interval: 1s

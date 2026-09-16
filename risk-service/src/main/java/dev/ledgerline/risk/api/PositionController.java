@@ -6,6 +6,7 @@ import dev.ledgerline.risk.query.RiskDataUnavailableException;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -22,8 +23,10 @@ class PositionController {
         this.queryService = queryService;
     }
 
+    /** Risk and ops see every account; a trader only their own (the token's username). */
     @GetMapping("/{accountId}/positions")
-    List<PositionView> positions(@PathVariable String accountId) {
+    @PreAuthorize("hasAnyRole('RISK', 'OPS') or #accountId == authentication.name")
+    public List<PositionView> positions(@PathVariable String accountId) {
         return queryService.positionsFor(accountId);
     }
 

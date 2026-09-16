@@ -1,5 +1,6 @@
 package dev.ledgerline.risk;
 
+import static dev.ledgerline.risk.TestUsers.trader;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -62,11 +63,11 @@ class RiskServiceIT {
         kafkaTemplate.send(Topics.TRADES_EXECUTED, "ACME", tradeJson).get(10, TimeUnit.SECONDS);
 
         await().atMost(Duration.ofSeconds(60)).untilAsserted(() -> mockMvc
-                .perform(get("/api/v1/risk/accounts/{account}/positions", buyer))
+                .perform(get("/api/v1/risk/accounts/{account}/positions", buyer).with(trader(buyer)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].symbol").value("ACME"))
                 .andExpect(jsonPath("$[0].netQuantity").value(11)));
-        mockMvc.perform(get("/api/v1/risk/accounts/{account}/positions", seller))
+        mockMvc.perform(get("/api/v1/risk/accounts/{account}/positions", seller).with(trader(seller)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].netQuantity").value(-11));
 
