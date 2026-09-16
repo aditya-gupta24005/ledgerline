@@ -1,5 +1,6 @@
 package dev.ledgerline.order.api;
 
+import static dev.ledgerline.order.TestUsers.trader;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -41,9 +42,10 @@ class DatabaseOutageHaltIT {
     private PostgreSQLContainer postgres;
 
     private ResultActions placeOrder(String account, String side) throws Exception {
-        return mockMvc.perform(post("/api/v1/orders").contentType(MediaType.APPLICATION_JSON).content("""
-                {"accountId": "%s", "symbol": "DBOUT", "side": "%s", "type": "LIMIT", "price": 20, "quantity": 1}
-                """.formatted(account, side)));
+        return mockMvc.perform(post("/api/v1/orders").with(trader(account))
+                .contentType(MediaType.APPLICATION_JSON).content("""
+                {"symbol": "DBOUT", "side": "%s", "type": "LIMIT", "price": 20, "quantity": 1}
+                """.formatted(side)));
     }
 
     @Test
@@ -69,6 +71,6 @@ class DatabaseOutageHaltIT {
         assertThat(Duration.ofNanos(System.nanoTime() - startedAt)).isLessThan(ENGINE_TIMEOUT.minusSeconds(1));
 
         placeOrder("outage-other", "SELL").andExpect(status().isServiceUnavailable());
-        mockMvc.perform(get("/api/v1/books/DBOUT")).andExpect(status().isOk());
+        mockMvc.perform(get("/api/v1/books/DBOUT").with(trader("outage-seller"))).andExpect(status().isOk());
     }
 }

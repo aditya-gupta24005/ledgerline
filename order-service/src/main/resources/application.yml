@@ -19,6 +19,12 @@ spring:
   flyway:
     schemas: order_service
     default-schema: order_service
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8180/realms/ledgerline
+          audiences: ledgerline-api
   kafka:
     bootstrap-servers: localhost:9092
     producer:
@@ -33,6 +39,9 @@ spring:
 
 ledgerline:
   currency: USD
+  security:
+    cors:
+      allowed-origins: http://localhost:5173
   outbox:
     relay:
       poll-interval: 200ms

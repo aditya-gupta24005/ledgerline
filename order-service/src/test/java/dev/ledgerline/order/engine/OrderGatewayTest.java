@@ -71,7 +71,7 @@ class OrderGatewayTest {
         BookSnapshot bookWhenHalted = gateway.book("ACME", 10);
         assertThatThrownBy(() -> gateway.submit(OrderRequest.limit("carol", "ACME", SELL, PRICE_100, 1)))
                 .isInstanceOf(EngineHaltedException.class);
-        assertThatThrownBy(() -> gateway.cancel("ACME", 1))
+        assertThatThrownBy(() -> gateway.cancel("ACME", 1, "alice"))
                 .isInstanceOf(EngineHaltedException.class);
         assertThat(gateway.book("ACME", 10)).isEqualTo(bookWhenHalted);
         assertThat(outbox.batches).isEmpty();

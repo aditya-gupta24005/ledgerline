@@ -11,8 +11,8 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import java.math.BigDecimal;
 
+/** The trading account is never part of the request: it is the authenticated user's username. */
 public record PlaceOrderRequest(
-        @NotBlank String accountId,
         @NotBlank @Pattern(regexp = "[A-Z]{1,10}", message = "must be 1-10 uppercase letters") String symbol,
         @NotNull Side side,
         @NotNull OrderType type,
@@ -24,7 +24,7 @@ public record PlaceOrderRequest(
         return type == null || (type == OrderType.LIMIT) == (price != null);
     }
 
-    OrderRequest toEngineRequest() {
+    OrderRequest toEngineRequest(String accountId) {
         return type == OrderType.MARKET
                 ? OrderRequest.market(accountId, symbol, side, quantity)
                 : OrderRequest.limit(accountId, symbol, side, Prices.toTicks(price), quantity);

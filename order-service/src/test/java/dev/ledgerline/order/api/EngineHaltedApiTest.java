@@ -1,5 +1,6 @@
 package dev.ledgerline.order.api;
 
+import static dev.ledgerline.order.TestUsers.trader;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -38,24 +39,24 @@ class EngineHaltedApiTest {
     void outboxFailureReturns503ThenRejectsOrderEntryAndReportsHealthDown() throws Exception {
         doThrow(new IllegalStateException("disk full")).when(outboxWriter).append(anyList());
 
-        mockMvc.perform(post("/api/v1/orders").contentType(MediaType.APPLICATION_JSON).content("""
-                        {"accountId": "alice", "symbol": "HALT", "side": "SELL", "type": "LIMIT", "price": 10, "quantity": 1}
+        mockMvc.perform(post("/api/v1/orders").with(trader("alice")).contentType(MediaType.APPLICATION_JSON).content("""
+                        {"symbol": "HALT", "side": "SELL", "type": "LIMIT", "price": 10, "quantity": 1}
                         """))
                 .andExpect(status().isCreated());
 
-        mockMvc.perform(post("/api/v1/orders").contentType(MediaType.APPLICATION_JSON).content("""
-                        {"accountId": "bob", "symbol": "HALT", "side": "BUY", "type": "LIMIT", "price": 10, "quantity": 1}
+        mockMvc.perform(post("/api/v1/orders").with(trader("bob")).contentType(MediaType.APPLICATION_JSON).content("""
+                        {"symbol": "HALT", "side": "BUY", "type": "LIMIT", "price": 10, "quantity": 1}
                         """))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.title").value("Engine halted"))
                 .andExpect(jsonPath("$.detail").value("Order entry halted after a persistence failure; restart required"));
 
-        mockMvc.perform(post("/api/v1/orders").contentType(MediaType.APPLICATION_JSON).content("""
-                        {"accountId": "carol", "symbol": "HALT", "side": "SELL", "type": "LIMIT", "price": 11, "quantity": 1}
+        mockMvc.perform(post("/api/v1/orders").with(trader("carol")).contentType(MediaType.APPLICATION_JSON).content("""
+                        {"symbol": "HALT", "side": "SELL", "type": "LIMIT", "price": 11, "quantity": 1}
                         """))
                 .andExpect(status().isServiceUnavailable());
 
-        mockMvc.perform(get("/api/v1/books/HALT")).andExpect(status().isOk());
+        mockMvc.perform(get("/api/v1/books/HALT").with(trader("alice"))).andExpect(status().isOk());
 
         mockMvc.perform(get("/actuator/health"))
                 .andExpect(status().isServiceUnavailable())

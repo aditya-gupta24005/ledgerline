@@ -74,10 +74,10 @@ public class OrderGateway implements DisposableBean {
         });
     }
 
-    public boolean cancel(String symbol, long orderId) {
+    public boolean cancel(String symbol, long orderId, String accountId) {
         return onSequencer(() -> {
             ensureRunning();
-            return engine.cancel(symbol, orderId);
+            return engine.cancel(symbol, orderId, accountId);
         });
     }
 
