@@ -1,0 +1,30 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: risk-service
+  mvc:
+    problemdetails:
+      enabled: true
+  kafka:
+    bootstrap-servers: localhost:9092
+    streams:
+      application-id: risk-service
+      replication-factor: 1
+      state-dir: ${java.io.tmpdir}/ledgerline/risk-service
+      properties:
+        processing.guarantee: exactly_once_v2
+        default.key.serde: org.apache.kafka.common.serialization.Serdes$StringSerde
+        default.value.serde: org.apache.kafka.common.serialization.Serdes$StringSerde
+
+ledgerline:
+  risk:
+    position-notional-limit: 1000000
+    dedupe-retention: 7d
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics

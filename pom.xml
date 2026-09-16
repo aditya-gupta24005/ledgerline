@@ -28,6 +28,7 @@
         <module>matching-engine</module>
         <module>order-service</module>
         <module>settlement-service</module>
+        <module>risk-service</module>
     </modules>
 
     <dependencyManagement>
