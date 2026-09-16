@@ -25,6 +25,7 @@
 
     <modules>
         <module>ledgerline-events</module>
+        <module>ledgerline-security</module>
         <module>matching-engine</module>
         <module>order-service</module>
         <module>settlement-service</module>
@@ -41,6 +42,11 @@
             <dependency>
                 <groupId>dev.ledgerline</groupId>
                 <artifactId>matching-engine</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>dev.ledgerline</groupId>
+                <artifactId>ledgerline-security</artifactId>
                 <version>${project.version}</version>
             </dependency>
         </dependencies>
