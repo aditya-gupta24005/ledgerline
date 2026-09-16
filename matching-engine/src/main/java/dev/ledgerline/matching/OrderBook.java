@@ -65,11 +65,12 @@ final class OrderBook {
         return new MatchResult(incoming.orderId, status, filled, incoming.remaining, trades, null);
     }
 
-    boolean cancel(long orderId) {
-        Order order = restingOrders.remove(orderId);
-        if (order == null) {
+    boolean cancel(long orderId, String accountId) {
+        Order order = restingOrders.get(orderId);
+        if (order == null || !order.accountId.equals(accountId)) {
             return false;
         }
+        restingOrders.remove(orderId);
         PriceLevel level = order.level;
         level.remove(order);
         if (level.isEmpty()) {

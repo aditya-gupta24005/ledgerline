@@ -164,7 +164,7 @@ class MatchingEngineTest {
             MatchResult middle = limit("b", SELL, 100_00, 2);
             MatchResult last = limit("c", SELL, 100_00, 3);
 
-            assertThat(engine.cancel(SYMBOL, middle.orderId())).isTrue();
+            assertThat(engine.cancel(SYMBOL, middle.orderId(), "b")).isTrue();
             assertThat(book().asks()).containsExactly(new LevelView(100_00, 4, 2));
 
             MatchResult buy = limit("buyer", BUY, 100_00, 4);
@@ -177,7 +177,7 @@ class MatchingEngineTest {
         void removesPriceLevelOnceEmpty() {
             MatchResult bid = limit("alice", BUY, 99_00, 1);
 
-            assertThat(engine.cancel(SYMBOL, bid.orderId())).isTrue();
+            assertThat(engine.cancel(SYMBOL, bid.orderId(), "alice")).isTrue();
             assertThat(engine.bestBid(SYMBOL)).isEmpty();
         }
 
@@ -186,9 +186,19 @@ class MatchingEngineTest {
             MatchResult sell = limit("seller", SELL, 100_00, 1);
             limit("buyer", BUY, 100_00, 1);
 
-            assertThat(engine.cancel(SYMBOL, sell.orderId())).isFalse();
-            assertThat(engine.cancel(SYMBOL, 999)).isFalse();
-            assertThat(engine.cancel("UNKNOWN", 1)).isFalse();
+            assertThat(engine.cancel(SYMBOL, sell.orderId(), "seller")).isFalse();
+            assertThat(engine.cancel(SYMBOL, 999, "seller")).isFalse();
+            assertThat(engine.cancel("UNKNOWN", 1, "seller")).isFalse();
+        }
+
+        @Test
+        void anotherAccountCannotCancelTheOrderAndItStaysOnTheBook() {
+            MatchResult bid = limit("alice", BUY, 99_00, 7);
+
+            assertThat(engine.cancel(SYMBOL, bid.orderId(), "mallory")).isFalse();
+
+            assertThat(book().bids()).containsExactly(new LevelView(99_00, 7, 1));
+            assertThat(engine.cancel(SYMBOL, bid.orderId(), "alice")).isTrue();
         }
     }
 

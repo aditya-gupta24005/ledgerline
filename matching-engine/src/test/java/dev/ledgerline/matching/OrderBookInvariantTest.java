@@ -37,7 +37,7 @@ class OrderBookInvariantTest {
             if (!submittedIds.isEmpty() && random.nextInt(10) == 0) {
                 long orderId = submittedIds.remove(random.nextInt(submittedIds.size()));
                 boolean shouldBeResting = expectedResting.remove(orderId) != null;
-                assertThat(engine.cancel(SYMBOL, orderId)).isEqualTo(shouldBeResting);
+                assertThat(engine.cancel(SYMBOL, orderId, "acct")).isEqualTo(shouldBeResting);
             } else {
                 submitRandomOrder(random, engine, expectedResting, submittedIds);
             }

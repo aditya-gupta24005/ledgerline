@@ -32,9 +32,10 @@ public final class MatchingEngine {
                 .process(order, request.type(), this::allocateTradeId);
     }
 
-    public boolean cancel(String symbol, long orderId) {
+    /** Cancels a resting order. Returns false if it is unknown, no longer resting, or owned by another account. */
+    public boolean cancel(String symbol, long orderId, String accountId) {
         OrderBook book = books.get(symbol);
-        return book != null && book.cancel(orderId);
+        return book != null && book.cancel(orderId, accountId);
     }
 
     public OptionalLong bestBid(String symbol) {
